@@ -1,7 +1,7 @@
 version: 2.1
 jobs:
   build:
-    working_directory: ~/app/src
+    working_directory: ~/project
     docker:
       - image: circleci/android:api-30
         auth:
