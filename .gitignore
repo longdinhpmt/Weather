@@ -1,4 +1,3 @@
-
 # Created by https://www.gitignore.io/api/java,linux,macos,windows,android,intellij,androidstudio
 # Edit at https://www.gitignore.io/?templates=java,linux,macos,windows,android,intellij,androidstudio
 
@@ -181,7 +180,7 @@ fabric.properties
 
 ### AndroidStudio Patch ###
 
-!/gradle/wrapper/gradle-wrapper.jar
+!/gradle/wrapper/
 
 ### Intellij ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and WebStorm
