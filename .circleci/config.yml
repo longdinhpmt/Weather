@@ -11,6 +11,10 @@ jobs:
       JVM_OPTS: -Xmx3200m
     steps:
       - checkout
+      - run: |
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            curl https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar -o $CIRCLE_WORKING_DIRECTORY/gradle/wrapper/gradle-wrapper.jar
+          fi
       - restore_cache:
           key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}
       - run:
