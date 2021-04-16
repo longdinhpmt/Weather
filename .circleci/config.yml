@@ -63,35 +63,26 @@ build_test: &build_test
         #command: ./gradlew build
 collect_logs: &collect_logs
   <<: *config_android
-  steps:
-    - run: |
-        # Collect the JUnit reports
-        mkdir -p $CIRCLE_TEST_REPORTS/reports/junit
-        find app/build/test-results/ -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/junit/ \;
-    - run: |
-        # Collect the Android Lint reports
-        mkdir -p $CIRCLE_TEST_REPORTS/reports/lint
-        find app/build/reports -name "lint*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/lint/ \;
-        find app/build/reports -name "lint*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/lint/ \;
-    - run: |
-        # Collect the Checkstyle reports
-        mkdir -p $CIRCLE_TEST_REPORTS/reports/checkstyle
-        - find app/build/reports/checkstyle -name "*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/checkstyle/ \;
-        - find app/build/reports/checkstyle -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/checkstyle/ \;
-    - run: |
-        # Collect the Findbugs reports
-        - mkdir -p $CIRCLE_TEST_REPORTS/reports/findbugs
-        - find app/build/reports/findbugs -name "*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/findbugs/ \;
-        - find app/build/reports/findbugs -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/findbugs/ \;
-    - run: |
-        # Collect the PMD reports
-        - mkdir -p $CIRCLE_TEST_REPORTS/reports/pmd
-        - find app/build/reports/pmd -name "*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/pmd/ \;
-        - find app/build/reports/pmd -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/pmd/ \;
-    - run: |
+  steps:    
+    - store_artifacts: # Collect the JUnit reports
+        path: app/build/test-results/
+        destination: reports/junit
+    - store_artifacts: # Collect the Android Lint reports
+        path: app/build/reports/
+        destination: reports/lint
+    - store_artifacts: # Collect the Checkstyle reports
+        path: app/build/reports/checkstyle/
+        destination: reports/checkstyle
+    - store_artifacts: # Collect the Findbugs reports
+        path: app/build/reports/findbugs/
+        destination: reports/findbugs
+    - store_artifacts: # Collect the PMD reports
+        path: app/build/reports/pmd/
+        destination: reports/pmd
+    - store_artifacts: # Collect the Detekt reports
         # Collect the Detekt reports
-        - mkdir -p $CIRCLE_TEST_REPORTS/reports/detekt
-        - find app/build/reports/ -name "report.detekt" -exec cp {} $CIRCLE_TEST_REPORTS/reports/detekt/ \;
+        path: app/build/reports/detekt/
+        destination: reports/detekt
 deploy_debug_to_firebase: &deploy_debug_to_firebase
   <<: *config_android
   steps:
