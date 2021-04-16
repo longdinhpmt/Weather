@@ -1,34 +1,131 @@
 version: 2.1
+orbs:
+  android: circleci/android@1.0.3
+dependencies:
+  pre:
+    # Remove any leftover lock from previous builds
+    - rm -f $HOME/.gradle/caches/modules-2/modules-2.lock
+    # Make sure we have the sdkmanager available, and update the Android SDK tools if not
+    - if [ ! -e $ANDROID_HOME/tools/bin/sdkmanager ]; then echo y | android update sdk --no-ui --all --filter tools; fi
+    # Pre-accept Android SDK components licenses
+    - mkdir "$ANDROID_HOME/licenses" || true
+    - echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > "$ANDROID_HOME/licenses/android-sdk-license"
+    # Install all the required SDK components
+    - $ANDROID_HOME/tools/bin/sdkmanager --verbose "platform-tools" "build-tools;"$ANDROID_BUILD_TOOLS "extras;google;m2repository"
+    # Install Firebase CLI
+    - curl -sL https://firebase.tools | bash
+  override:
+    # Force Gradle to pre-download dependencies for the app module (the default would only be for the root, which is useless)
+    - if [ -f ./gradlew ]; then ./gradlew app:dependencies --console=plain --no-daemon;else gradle app:dependencies --console=plain --no-daemon;fi
+  cache_directories:
+    # Android SDK
+    - /usr/local/android-sdk-linux/tools
+    - /usr/local/android-sdk-linux/platform-tools
+    - /usr/local/android-sdk-linux/build-tools
+    - /usr/local/android-sdk-linux/licenses
+    - /usr/local/android-sdk-linux/extras/google/m2repository
+    # Gradle caches
+    - /home/circleci/.gradle/caches/
+    - /home/circleci/.gradle/wrapper/
+references:
+  cache_key: &cache_key
+    key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+config_android: &config_android
+  working_directory: ~/code
+  docker:
+    - image: circleci/android:api-30
+      auth:
+        username: longdinh
+        password: $DOCKERHUB_PASSWORD
+  environment:
+    JVM_OPTS: -Xmx3200m
+build_test: &build_test
+  <<: *config_android
+  steps:
+    - checkout
+    - run: |
+        if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+          curl https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar -o $CIRCLE_WORKING_DIRECTORY/gradle/wrapper/gradle-wrapper.jar
+        fi
+    - restore_cache:
+        <<: *cache_key
+    - run:
+        name: Download Dependencies
+        command: if [ -f ./gradlew ]; then ./gradlew app:Dependencies --console=plain --no-daemon;else gradle app:Dependencies --console=plain --no-daemon;fi
+    - save_cache:
+        <<: *cache_key
+        paths:
+          - ~/.gradle/caches
+          - ~/.gradle/wrapper
+    - run:
+        name: Build app
+        command: ./gradlew lint test
+        #command: ./gradlew build
+collect_logs: &collect_logs
+  <<: *config_android
+  steps:
+    - run: |
+        # Collect the JUnit reports
+        mkdir -p $CIRCLE_TEST_REPORTS/reports/junit
+        find app/build/test-results/ -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/junit/ \;
+    - run: |
+        # Collect the Android Lint reports
+        mkdir -p $CIRCLE_TEST_REPORTS/reports/lint
+        find app/build/reports -name "lint*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/lint/ \;
+        find app/build/reports -name "lint*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/lint/ \;
+    - run: |
+        # Collect the Checkstyle reports
+        mkdir -p $CIRCLE_TEST_REPORTS/reports/checkstyle
+        - find app/build/reports/checkstyle -name "*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/checkstyle/ \;
+        - find app/build/reports/checkstyle -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/checkstyle/ \;
+    - run: |
+        # Collect the Findbugs reports
+        - mkdir -p $CIRCLE_TEST_REPORTS/reports/findbugs
+        - find app/build/reports/findbugs -name "*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/findbugs/ \;
+        - find app/build/reports/findbugs -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/findbugs/ \;
+    - run: |
+        # Collect the PMD reports
+        - mkdir -p $CIRCLE_TEST_REPORTS/reports/pmd
+        - find app/build/reports/pmd -name "*.html" -exec cp {} $CIRCLE_TEST_REPORTS/reports/pmd/ \;
+        - find app/build/reports/pmd -name "*.xml" -exec cp {} $CIRCLE_TEST_REPORTS/reports/pmd/ \;
+    - run: |
+        # Collect the Detekt reports
+        - mkdir -p $CIRCLE_TEST_REPORTS/reports/detekt
+        - find app/build/reports/ -name "report.detekt" -exec cp {} $CIRCLE_TEST_REPORTS/reports/detekt/ \;
+deploy_debug_to_firebase: &deploy_debug_to_firebase
+  <<: *config_android
+  steps:
+    #- checkout
+    - run:
+        name: Build debug
+        command: ./gradlew :app:assembleDebug
+    - run:
+        name: Install Firebase CLI
+        command: |
+          curl -sL https://firebase.tools | bash
+    - run:
+        name: Upload File APK Debug to Firebase App Distribution
+        command: firebase appdistribution:distribute app/build/outputs/apk/debug/app-debug.apk --app $FIREBASE_APP_ID --token $FIREBASE_TOKEN_CLI --release-notes "Upload APK to Firebase"
+
 jobs:
-  build:
-    working_directory: ~/code
-    docker:
-      - image: circleci/android:api-30
-        auth:
-          username: longdinh
-          password: $DOCKERHUB_PASSWORD
-    environment:
-      JVM_OPTS: -Xmx3200m
-    steps:
-      - checkout
-      - run: |
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            curl https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar -o $CIRCLE_WORKING_DIRECTORY/gradle/wrapper/gradle-wrapper.jar
-          fi
-      - restore_cache:
-          key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}
-      - run:
-          name: Download Dependencies
-          command: ./gradlew androidDependencies
-      - save_cache:
-          paths:
-            - ~/.gradle
-          key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}
-      - run:
-          name: Run App
-          command: ./gradlew lint test
-      - store_artifacts:
-          path: app/build/reports
-          destination: reports
-      - store_test_results:
-          path: app/build/test-results
+  build_test:
+    <<: *build_test
+  collect_logs:
+    <<: *collect_logs
+  deploy_debug_to_firebase:
+    <<: *deploy_debug_to_firebase
+
+workflows:
+  version: 2
+  build_test_collect_log_and_deploy:
+    jobs:
+     - build_test
+     - collect_logs:
+        requires:
+          - build_test
+     - deploy_debug_to_firebase:
+        requires:
+          - build_test
+        filters:
+          branches:
+            only: develop
